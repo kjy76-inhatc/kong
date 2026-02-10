@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>갓파큘라를 잡아라! (방향 최종 수정)</title>
+<style>
+  body { margin: 0; background: #222; overflow: hidden; }
+  canvas { display: block; margin: 0 auto; background: #000; }
+  .hint { 
+    position: fixed; bottom: 10px; width: 100%; text-align: center; 
+    color: #fff; font-size: 16px; font-weight: bold; 
+    text-shadow: 1px 1px 2px black; pointer-events: none; display: none;
+  }
+  body.ingame .hint { display: block; }
+</style>
+</head>
+<body>
+<canvas id="cv" width="960" height="540"></canvas>
+<div class="hint">← → : 이동 / ↑ : 점프 / Space : 공격</div>
+
+<audio id="bgm" src="좀비 코인 넣어!.mp3" loop></audio>
+<audio id="bossBgm" src="죽지 않는 왕.mp3" loop></audio>
+
+<script>
+const cv = document.getElementById("cv");
+const g = cv.getContext("2d");
+
+const W = 960;
+const H = 540;
+const GROUND_Y = 500; 
+const MAP_LEN = W * 3; 
+
+// ─────────────────────────────────────────────
+// 1. 이미지 로딩
+// ─────────────────────────────────────────────
+const images = {
+  intro: new Image(),
+  bg: new Image(),
+  player: new Image(),
+  playerDead: new Image(), 
+  npc: new Image(),
+  enemy: new Image(),
+  boss: new Image(), 
+  bossDead: new Image(),
+  enemyDead: new Image()
+};
+
+images.intro.src = 'image_22.png';
+images.bg.src = 'stage01.png';
+images.player.src = 'image_0.png'; 
+images.playerDead.src = 'image_38.png';
+images.npc.src = 'image_7.png';
+images.enemy.src = '갓파.png';
+images.boss.src = 'boss01.png'; 
+images.bossDead.src = 'boss02.png';
+images.enemyDead.src = '갓파2.png'; 
+
+// ─────────────────────────────────────────────
+// 2. 게임 변수 & 설정
+// ─────────────────────────────────────────────
+let gameState = "intro"; 
+let stageStep = 0; 
+let camX = 0;
+let enemies = []; 
+let totalEnemies = 49; 
+let killCount = 0; 
+let enemiesSpawned = 0; 
+let spawnTimer = 0;     
+let bossSpawned = false; 
+
+let gameTime = 300; 
+let frameCount = 0; 
+
+// 주인공
+const player = {
+  x: 100, y: GROUND_Y, 
+  vx: 0, vy: 0,
+  speed: 6, jumpPower: -17, gravity: 0.8,
+  onGround: true, facing: 1, 
+  attackTimer: 0,
+  hp: 50, maxHp: 50, atk: 5,
+  hurtTimer: 0,
+  scale: 0.25 
+};
+
+// NPC
+const npc = {
+  x: -200, y: GROUND_Y, facing: -1, speed: 5, active: false
+};
+
+// ─────────────────────────────────────────────
+// 3. 적(갓파 & 보스) 클래스
+// ─────────────────────────────────────────────
+class Kappa {
+  constructor(isBoss = false) {
+    this.isBoss = isBoss;
+    this.respawn(true);
+  }
+
+  respawn(firstSpawn = false) {
+    if (this.isBoss && bossSpawned) return; 
+
+    const minSpawnX = 500;
+    const startX = minSpawnX + Math.random() * (MAP_LEN - minSpawnX - 100);
+    
+    this.x = startX;
+    this.y = GROUND_Y;
+    this.state = "alive"; 
+    this.deathTimer = 0; 
+    this.facing = Math.random() < 0.5 ? -1 : 1; 
+
+    if (this.isBoss) {
+        this.hp = 100; this.maxHp = 100; 
+        this.atk = 5; 
+        this.speed = 4; 
+        this.scale = 0.5 / 3; 
+        bossSpawned = true;
+    } else {
+        this.hp = 10; this.maxHp = 10;
+        this.atk = 2;
+        this.speed = 2 + Math.random() * 2;
+        this.scale = 0.25; 
+    }
+  }
+
+  update() {
+    if (this.state === "dead") return;
+
+    if (this.state === "dying") {
+      this.deathTimer--;
+      if (this.deathTimer <= 0) {
+        this.state = "dead";
+        if (this.isBoss) gameState = "stageClear";
+      }
+      return;
+    }
+
+    // 이동
+    this.x += this.speed * this.facing;
+
+    // 맵 끝 왕복 로직
+    if (this.x < 100) {
+        this.x = 100;
+        this.facing = 1; 
+    } else if (this.x > MAP_LEN - 100) {
+        this.x = MAP_LEN - 100;
+        this.facing = -1; 
+    }
+  }
+
+  takeDamage(dmg) {
+    if (this.state !== "alive") return;
+    this.hp -= dmg;
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.state = "dying";
+      this.deathTimer = 60;
+      
+      if (!this.isBoss) {
+          killCount++;
+          if (killCount >= totalEnemies) { 
+              gameState = "bossReady";
+              enemies = []; 
+          }
+      }
+    }
+  }
+}
+
+function initEnemies() {
+  enemies = [];
+  killCount = 0;
+  enemiesSpawned = 0;
+  spawnTimer = 0; 
+  bossSpawned = false;
+}
+
+function spawnBoss() {
+    enemies = [];
+    enemies.push(new Kappa(true)); 
+}
+
+// ─────────────────────────────────────────────
+// 4. 입력 시스템
+// ─────────────────────────────────────────────
+const keys = {};
+
+function resetGame() {
+    gameState = "intro";
+    player.hp = player.maxHp;
+    player.x = 100; player.y = GROUND_Y;
+    gameTime = 300;
+    
+    initEnemies();
+    npc.active = false;
+    document.body.classList.remove("ingame");
+    
+    stopAllMusic();
+    tryPlayMusic("bgm");
+}
+
+function stopAllMusic() {
+    const bgm = document.getElementById("bgm");
+    const bossBgm = document.getElementById("bossBgm");
+    if(bgm) { bgm.pause(); bgm.currentTime = 0; }
+    if(bossBgm) { bossBgm.pause(); bossBgm.currentTime = 0; }
+}
+
+function tryPlayMusic(id) {
+    stopAllMusic(); 
+    const audio = document.getElementById(id);
+    if(audio) {
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+    }
+}
+
+
+window.addEventListener("keydown", (e) => {
+  if(["ArrowUp", "ArrowDown", "Space", " "].includes(e.key)) e.preventDefault();
+
+  if (gameState === "gameOver") {
+      resetGame();
+      return;
+  }
+  
+  if(e.key === " " || e.code === "Space") {
+    if(gameState === "intro") {
+        gameState = "stageStart";
+        stageStep = 0; 
+        tryPlayMusic("bgm");
+    } 
+    else if(gameState === "stageStart") {
+        if(stageStep === 0) {
+            stageStep = 1; 
+            npc.x = player.x + 200; 
+            npc.active = true;
+        } else if(stageStep === 1) {
+            stageStep = 2; 
+        }
+    }
+    else if (gameState === "bossReady") {
+        gameState = "bossFight";
+        player.hp = player.maxHp; 
+        spawnBoss();
+        tryPlayMusic("bossBgm");
+    }
+  }
+
+  if(gameState === "play" || gameState === "bossFight") {
+    keys[e.key] = true;
+    if(e.code === "Space") keys["Space"] = true;
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  if(gameState === "play" || gameState === "bossFight") {
+    keys[e.key] = false;
+    if(e.code === "Space") keys["Space"] = false;
+  }
+});
+
+window.addEventListener("click", () => {
+    if(gameState === "bossFight") tryPlayMusic("bossBgm");
+    else if(gameState !== "intro") tryPlayMusic("bgm");
+});
+
+// ─────────────────────────────────────────────
+// 5. 업데이트
+// ─────────────────────────────────────────────
+function update() {
+  if (gameState === "intro" || gameState === "gameOver" || gameState === "stageClear" || gameState === "bossReady") return;
+
+  if (gameState === "stageStart") {
+    if(stageStep === 2) {
+        npc.x -= npc.speed; 
+        if(npc.x < -100) {
+            gameState = "play";
+            npc.active = false;
+            document.body.classList.add("ingame");
+            initEnemies(); 
+        }
+    }
+    return;
+  }
+
+  if (gameState === "play" || gameState === "bossFight") {
+      frameCount++;
+      if (frameCount % 60 === 0) { 
+          gameTime--;
+          if (gameTime <= 0) {
+              gameTime = 0;
+              player.hp = 0; 
+          }
+      }
+
+      if (gameState === "play" && enemiesSpawned < totalEnemies) {
+          spawnTimer--;
+          if (spawnTimer <= 0) {
+              const k = new Kappa(false);
+              enemies.push(k);
+              enemiesSpawned++;
+
+              let nextTime = 120 - (enemiesSpawned * 2);
+              if (nextTime < 30) nextTime = 30;
+              spawnTimer = nextTime;
+          }
+      }
+  }
+
+  if (player.hp <= 0) {
+      gameState = "gameOver";
+      return;
+  }
+
+  player.vx = 0;
+  if (keys["ArrowLeft"]) { player.vx = -player.speed; player.facing = -1; }
+  if (keys["ArrowRight"]) { player.vx = player.speed; player.facing = 1; }
+  player.x += player.vx;
+
+  if (keys["ArrowUp"]) {
+    if (player.y >= GROUND_Y - 10) {
+      player.vy = player.jumpPower; player.y -= 5; player.onGround = false;
+    }
+  }
+
+  if ((keys[" "] || keys["Space"]) && player.attackTimer === 0) player.attackTimer = 15;
+  if (player.attackTimer > 0) player.attackTimer--;
+
+  player.vy += player.gravity; player.y += player.vy;
+  if (player.y >= GROUND_Y) { player.y = GROUND_Y; player.vy = 0; player.onGround = true; }
+  
+  if (player.x < 30) player.x = 30;
+  if (player.x > MAP_LEN - 30) player.x = MAP_LEN - 30;
+
+  camX = player.x - W / 2;
+  if (camX < 0) camX = 0;
+  if (camX > MAP_LEN - W) camX = MAP_LEN - W;
+
+  if (player.hurtTimer > 0) player.hurtTimer--;
+
+  enemies.forEach(enemy => {
+    enemy.update();
+    if(enemy.state === "dead") return;
+
+    if(player.attackTimer > 0 && player.attackTimer < 12 && enemy.state === "alive") {
+       const rangeBonus = enemy.isBoss ? 50 : 0;
+       const atkRange = 100 + rangeBonus; 
+       const dist = (enemy.x - player.x) * player.facing;
+       if(dist > 0 && dist < atkRange && Math.abs(enemy.y - player.y) < 60 + rangeBonus) {
+          enemy.takeDamage(player.atk);
+          player.attackTimer = 0; 
+       }
+    }
+
+    if(enemy.state === "alive" && player.hurtTimer === 0) {
+       const hitBonus = enemy.isBoss ? 30 : 0;
+       if(Math.abs(player.x - enemy.x) < 40 + hitBonus && Math.abs(player.y - enemy.y) < 50 + hitBonus) {
+          player.hp -= enemy.atk;
+          player.hurtTimer = 60; 
+          player.vy = -5;
+          player.x -= player.facing * 20;
+          if(player.hp < 0) player.hp = 0;
+       }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// 6. 그리기
+// ─────────────────────────────────────────────
+function drawHPBar(x, y, hp, maxHp, width, color, isFixed=false, offset=90) {
+    if(isFixed) {
+        g.fillStyle = "black";
+        g.fillRect(x, y, width, 15);
+        g.fillStyle = color;
+        const hpW = (hp / maxHp) * width;
+        g.fillRect(x, y, hpW, 15);
+        g.strokeStyle = "white"; g.lineWidth = 2;
+        g.strokeRect(x, y, width, 15);
+    } else {
+        const barY = y - offset;
+        g.fillStyle = "black";
+        g.fillRect(x - width/2, barY, width, 6);
+        g.fillStyle = color;
+        const hpW = (hp / maxHp) * width;
+        g.fillRect(x - width/2, barY, hpW, 6);
+        g.strokeStyle = "white"; g.lineWidth = 1;
+        g.strokeRect(x - width/2, barY, width, 6);
+    }
+}
+
+function drawCharacter(img, x, y, facing, angle=0, alpha=1, scale=0.25, isDeadEnemy=false) {
+    if (!img.complete || img.naturalWidth === 0) return;
+    g.save();
+    g.globalAlpha = alpha;
+    
+    let finalScale = scale;
+
+    // 보스 사망 시 크기 확대 (살아있을 때 1/3이었으므로 3배로 키움)
+    if (isDeadEnemy) {
+        if (img.src.includes("boss")) {
+             finalScale = scale * 3.0; 
+        } else {
+             finalScale = scale * 0.2;
+        }
+    }
+
+    const w = img.width * finalScale;
+    const h = img.height * finalScale;
+
+    g.translate(x, y); 
+    
+    // ✅ 방향 수정: 보스든 일반 갓파든 모두 -facing 적용
+    // (이미지가 왼쪽을 보고 있으므로, 오른쪽으로 갈 때(-1 * 1 = -1) 반전되어야 함)
+    if (img.src.includes("boss") || img.src.includes("갓파")) {
+        g.scale(-facing, 1);
+    } else {
+        g.scale(facing, 1); 
+    }
+
+    g.translate(0, -h/2);
+    g.rotate(angle);
+    g.translate(0, h/2);
+    g.drawImage(img, -w/2, -h, w, h);
+    g.restore();
+}
+
+function draw() {
+  g.clearRect(0, 0, W, H);
+
+  // ■ 인트로 ■
+  if (gameState === "intro") {
+    if (images.intro.complete) g.drawImage(images.intro, 0, 0, W, H);
+    return;
+  }
+
+  // ■ 배경 & 땅 ■
+  if (images.bg.complete) {
+    const bgX = -(camX * 0.5) % W;
+    g.drawImage(images.bg, bgX, 0, W, H);
+    if (bgX < 0) g.drawImage(images.bg, bgX + W, 0, W, H);
+  } else { g.fillStyle = "#87ceeb"; g.fillRect(0,0,W,H); }
+  g.fillStyle = "#654321"; g.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  g.fillStyle = "#4ec04e"; g.fillRect(0, GROUND_Y, W, 10);
+
+  // ■ 게임 오버 ■
+  if (gameState === "gameOver") {
+      g.fillStyle = "rgba(0,0,0,0.8)"; g.fillRect(0,0,W,H);
+      if(images.playerDead.complete) {
+        drawCharacter(images.playerDead, W/2, H/2 + 100, 1, 0, 1, player.scale);
+      }
+      g.fillStyle = "red"; g.textAlign = "center"; g.font = "bold 60px sans-serif";
+      g.fillText("GAME OVER", W/2, H/2 - 50);
+      g.fillStyle = "white"; g.font = "24px sans-serif";
+      g.fillText("Press Any Key to Restart", W/2, H/2);
+      return;
+  }
+
+  // ■ 스테이지 클리어 ■
+  if (gameState === "stageClear") {
+      g.fillStyle = "rgba(0,0,0,0.8)"; g.fillRect(0,0,W,H);
+      g.fillStyle = "yellow"; g.textAlign = "center"; g.font = "bold 60px sans-serif";
+      g.fillText("STAGE ONE CLEAR!", W/2, H/2);
+      return;
+  }
+
+  // ■ 적(갓파 & 보스) 그리기 ■
+  enemies.forEach(enemy => {
+    const screenX = enemy.x - camX;
+    
+    if (screenX < -200 || screenX > W + 200) return;
+    if (enemy.state === "dead") return;
+
+    let img;
+    if (enemy.state === "dying") {
+        img = enemy.isBoss ? images.bossDead : images.enemyDead;
+    } else {
+        img = enemy.isBoss ? images.boss : images.enemy;
+    }
+    const isDead = (enemy.state === "dying");
+
+    if (img.complete) {
+        drawCharacter(img, screenX, enemy.y, enemy.facing, 0, 1, enemy.scale, isDead); 
+    } else {
+        g.fillStyle = "green"; g.fillRect(screenX-25, enemy.y-50, 50, 50);
+    }
+
+    // 적 HP바
+    if (enemy.state === "alive") {
+        const barWidth = enemy.isBoss ? 100 : 50;
+        const hpOffset = enemy.isBoss ? 120 : 110; 
+        drawHPBar(screenX, enemy.y, enemy.hp, enemy.maxHp, barWidth, "red", false, hpOffset);
+    }
+  });
+
+  // ■ 플레이어 그리기 ■
+  const screenX = player.x - camX;
+  let atkAngle = 0;
+  if (player.attackTimer > 0) atkAngle = (player.attackTimer > 10) ? -0.5 : 1.0;
+  let pAlpha = (player.hurtTimer > 0 && Math.floor(player.hurtTimer / 4) % 2 === 0) ? 0.5 : 1;
+
+  if(images.player.complete) {
+      drawCharacter(images.player, screenX, player.y, player.facing, atkAngle, pAlpha, player.scale);
+  } else {
+      g.fillStyle = "blue"; g.fillRect(screenX-20, player.y-60, 40, 60);
+  }
+
+  if (player.attackTimer > 0) {
+    g.save(); g.translate(screenX, player.y - 40); g.scale(player.facing, 1);
+    g.beginPath(); g.strokeStyle = "white"; g.lineWidth = 5; g.arc(0, 0, 60, -1, 1); g.stroke();
+    g.restore();
+  }
+
+  // ■ UI 레이어 ■
+  if (gameState === "stageStart") {
+    if (npc.active && images.npc.complete) drawCharacter(images.npc, npc.x - camX, npc.y, npc.facing, 0, 1, player.scale);
+    if (stageStep === 0) { g.fillStyle="rgba(0,0,0,0.7)";g.fillRect(0,0,W,H);g.fillStyle="white";g.textAlign="center";g.font="bold 60px sans-serif";g.fillText("STAGE ONE",W/2,H/2-30);g.font="bold 40px sans-serif";g.fillText("갓파큘라를 잡아라!",W/2,H/2+40);g.font="20px sans-serif";g.fillText("▼ 스페이스바",W/2,H-100);}
+    else if(stageStep===1){g.fillStyle="rgba(0,0,0,0.8)";g.fillRect(0,0,W,160);g.fillStyle="#444";g.fillRect(30,20,120,35);g.fillStyle="white";g.textAlign="center";g.font="bold 20px sans-serif";g.fillText("여학생",90,45);g.textAlign="left";g.font="24px sans-serif";g.fillText("도시가 갓파에게 점령당했어요!",50,90);g.fillText("갓파를 물리치고 탈출할 수 있는 항구로 가세요.",50,130);g.textAlign="right";g.font="16px sans-serif";g.fillStyle="#aaa";g.fillText("Space ▶",W-30,140);}
+  }
+
+  // ■ 보스 준비 ■
+  if (gameState === "bossReady") {
+      g.fillStyle = "rgba(0,0,0,0.7)"; g.fillRect(0,0,W,H);
+      g.fillStyle = "red"; g.textAlign = "center"; g.font = "bold 60px sans-serif";
+      g.fillText("⚠️ STAGE BOSS ⚠️", W/2, H/2 - 20);
+      g.fillStyle = "white"; g.font = "30px sans-serif";
+      g.fillText("HP가 회복되었습니다!", W/2, H/2 + 40);
+      g.font = "20px sans-serif"; g.fillText("스페이스바를 누르면 보스전 시작", W/2, H - 100);
+  }
+
+  // ■ HUD ■
+  if (gameState === "play" || gameState === "bossFight") {
+      const minutes = Math.floor(gameTime / 60);
+      const seconds = Math.floor(gameTime % 60);
+      const timeStr = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+      g.fillStyle = "white"; g.font = "bold 24px sans-serif"; g.textAlign = "center";
+      g.fillText(`⏱ TIME: ${timeStr}`, W/2, 30);
+      
+      g.textAlign = "left";
+      g.fillStyle = "white"; g.font = "bold 20px sans-serif"; 
+      g.fillText("PLAYER HP", 20, 25);
+      drawHPBar(20, 35, player.hp, player.maxHp, 200, "#00ff00", true);
+
+      if(gameState === "play") {
+          g.fillText(`남은 적: ${totalEnemies - killCount}마리`, 240, 50);
+      }
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
