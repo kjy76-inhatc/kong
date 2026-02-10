@@ -1,74 +1,39 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-  <title>갓파큘라를 잡아라!</title>
-  
-  <meta property="og:type" content="website">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>갓파큘라를 잡아라! (보스 패턴 수정)</title>
 
-  <meta property="og:url" content="https://kjy76-inhatc.github.io/kong/">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://kjy76-inhatc.github.io/kong/">
+    <meta property="og:title" content="갓파큘라를 잡아라_신규출시">
+    <meta property="og:description" content="지금 플레이하세요!">
+    <meta property="og:image" content="https://kjy76-inhatc.github.io/kong/op01.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="갓파큘라를 잡아라_신규출시">
+    <meta name="twitter:description" content="지금 플레이하세요!">
+    <meta name="twitter:image" content="https://kjy76-inhatc.github.io/kong/op01.png">
 
-  <meta property="og:title" content="갓파큘라를 잡아라_신규출시">
-  <meta property="og:description" content="지금 플레이하세요!">
+    <style>
+        body { margin: 0; padding: 0; background: #000; overflow: hidden; touch-action: none; width: 100%; height: 100vh; }
+        canvas { display: block; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; z-index: 1; }
+        .hint { position: fixed; top: 10px; width: 100%; text-align: center; color: rgba(255, 255, 255, 0.7); font-size: 12px; font-weight: bold; pointer-events: none; z-index: 10; text-shadow: 1px 1px 2px black; }
 
-  <meta property="og:image" content="https://kjy76-inhatc.github.io/kong/op01.png">
-
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="갓파큘라를 잡아라_신규출시">
-  <meta name="twitter:description" content="지금 플레이하세요!">
-  <meta name="twitter:image" content="https://kjy76-inhatc.github.io/kong/op01.png">
-<style>
-  body { margin: 0; background: #222; overflow: hidden; touch-action: none; /* 모바일 스크롤 방지 */ }
-  canvas { display: block; margin: 0 auto; background: #000; width: 100%; height: 100vh; object-fit: contain; }
-  
-  .hint { 
-    position: fixed; top: 10px; width: 100%; text-align: center; 
-    color: #fff; font-size: 14px; font-weight: bold; 
-    text-shadow: 1px 1px 2px black; pointer-events: none; z-index: 10;
-  }
-
-  /* ■ 모바일 컨트롤러 스타일 ■ */
-  .controls-layer {
-    position: fixed; bottom: 20px; width: 100%; height: 150px;
-    display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box;
-    pointer-events: none; /* 버튼 외 영역 터치 통과 */
-    z-index: 20;
-  }
-  
-  .control-group {
-    display: flex; gap: 10px; align-items: flex-end; pointer-events: auto;
-  }
-
-  .btn {
-    width: 70px; height: 70px;
-    background: rgba(255, 255, 255, 0.3);
-    border: 2px solid rgba(255, 255, 255, 0.5);
-    border-radius: 50%;
-    color: white; font-size: 24px; font-weight: bold;
-    display: flex; justify-content: center; align-items: center;
-    user-select: none; -webkit-user-select: none;
-    touch-action: none;
-  }
-  
-  .btn:active, .btn.pressed {
-    background: rgba(255, 255, 255, 0.6);
-    transform: scale(0.95);
-  }
-
-  .btn-atk {
-    background: rgba(255, 0, 0, 0.3);
-    border-color: rgba(255, 0, 0, 0.5);
-    width: 80px; height: 80px;
-  }
-</style>
+        .controls-layer { position: fixed; bottom: 20px; left: 0; width: 100%; height: auto; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 999; }
+        .control-group { display: flex; gap: 15px; align-items: flex-end; pointer-events: auto; }
+        .btn { width: 65px; height: 65px; background: rgba(255, 255, 255, 0.15); border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%; color: rgba(255, 255, 255, 0.8); font-size: 20px; font-weight: bold; display: flex; justify-content: center; align-items: center; user-select: none; -webkit-user-select: none; backdrop-filter: blur(2px); }
+        .btn:active, .btn.pressed { background: rgba(255, 255, 255, 0.5); transform: scale(0.9); }
+        .btn-atk { background: rgba(255, 50, 50, 0.2); border-color: rgba(255, 50, 50, 0.4); width: 75px; height: 75px; font-size: 16px; }
+        @media (orientation: landscape) { .controls-layer { bottom: 10px; padding: 0 40px; } }
+    </style>
 </head>
 <body>
+
 <canvas id="cv" width="960" height="540"></canvas>
-<div class="hint">PC: 방향키/스페이스바 | 모바일: 화면 버튼 터치</div>
+<div class="hint">PC: 방향키/스페이스바 | 모바일: 가로모드 권장</div>
 
 <div class="controls-layer">
     <div class="control-group">
@@ -83,20 +48,22 @@
 
 <audio id="bgm" src="좀비 코인 넣어!.mp3" loop></audio>
 <audio id="bossBgm" src="죽지 않는 왕.mp3" loop></audio>
+<audio id="gameOverBgm" src="좀비게인, 게임 오버 발라드.mp3"></audio>
+
+<audio id="sfxAttack" src="yapp.mp3"></audio>
+<audio id="sfxHit" src="acc.mp3"></audio>
+<audio id="sfxJump" src="jump.mp3"></audio>
+<audio id="sfxBossOut" src="bossout.mp3"></audio>
 
 <script>
 const cv = document.getElementById("cv");
 const g = cv.getContext("2d");
 
-// 캔버스 크기 고정 (비율 유지 리사이징은 CSS가 담당)
 const W = 960;
 const H = 540;
 const GROUND_Y = 500; 
 const MAP_LEN = W * 3; 
 
-// ─────────────────────────────────────────────
-// 1. 이미지 로딩
-// ─────────────────────────────────────────────
 const images = {
   intro: new Image(),
   bg: new Image(),
@@ -106,7 +73,8 @@ const images = {
   enemy: new Image(),
   boss: new Image(), 
   bossDead: new Image(),
-  enemyDead: new Image()
+  enemyDead: new Image(),
+  ball: new Image()
 };
 
 images.intro.src = 'image_22.png';
@@ -117,15 +85,14 @@ images.npc.src = 'image_7.png';
 images.enemy.src = '갓파.png';
 images.boss.src = 'boss01.png'; 
 images.bossDead.src = 'boss02.png';
-images.enemyDead.src = '갓파2.png'; 
+images.enemyDead.src = '갓파2.png';
+images.ball.src = 'ball.png';
 
-// ─────────────────────────────────────────────
-// 2. 게임 변수 & 설정
-// ─────────────────────────────────────────────
 let gameState = "intro"; 
 let stageStep = 0; 
 let camX = 0;
 let enemies = []; 
+let bossBalls = []; 
 let totalEnemies = 49; 
 let killCount = 0; 
 let enemiesSpawned = 0; 
@@ -135,7 +102,6 @@ let bossSpawned = false;
 let gameTime = 300; 
 let frameCount = 0; 
 
-// 주인공
 const player = {
   x: 100, y: GROUND_Y, 
   vx: 0, vy: 0,
@@ -147,17 +113,74 @@ const player = {
   scale: 0.25 
 };
 
-// NPC
 const npc = {
   x: -200, y: GROUND_Y, facing: -1, speed: 5, active: false
 };
 
-// ─────────────────────────────────────────────
-// 3. 적(갓파 & 보스) 클래스
-// ─────────────────────────────────────────────
+function playSound(id) {
+    const audio = document.getElementById(id);
+    if(audio) {
+        audio.currentTime = 0; 
+        audio.play().catch(() => {});
+    }
+}
+
+// ■ 보스 공 클래스 (유도 기능 추가)
+class BossBall {
+    constructor(x, y, targetX, targetY) {
+        this.x = x;
+        this.y = y; 
+        this.radius = 20;
+        this.speed = 8; // 공 속도
+        this.damage = 5; 
+        this.active = true;
+        this.rotation = 0;
+
+        // 플레이어 방향으로 벡터 계산 (조준)
+        const dx = targetX - x;
+        const dy = (targetY - 40) - y; // 플레이어 몸통 쪽을 향해 발사
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        
+        // 정규화 후 속도 적용
+        this.vx = (dx / distance) * this.speed;
+        this.vy = (dy / distance) * this.speed;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.rotation += 0.2; // 회전 효과
+
+        // 맵이나 화면 밖으로 너무 멀리 나가면 삭제
+        if (this.x < camX - 200 || this.x > camX + W + 200 || this.y > H + 200 || this.y < -500) {
+            this.active = false;
+        }
+    }
+
+    draw() {
+        const screenX = this.x - camX;
+        g.save();
+        g.translate(screenX, this.y);
+        g.rotate(this.rotation);
+        if(images.ball.complete && images.ball.naturalWidth !== 0) {
+            g.drawImage(images.ball, -this.radius, -this.radius, this.radius*2, this.radius*2);
+        } else {
+            g.beginPath();
+            g.arc(0, 0, this.radius, 0, Math.PI*2);
+            g.fillStyle = "red";
+            g.fill();
+            g.strokeStyle = "yellow";
+            g.lineWidth = 2;
+            g.stroke();
+        }
+        g.restore();
+    }
+}
+
 class Kappa {
   constructor(isBoss = false) {
     this.isBoss = isBoss;
+    this.ballTimer = 0; 
     this.respawn(true);
   }
 
@@ -176,8 +199,10 @@ class Kappa {
     if (this.isBoss) {
         this.hp = 100; this.maxHp = 100; 
         this.atk = 5; 
-        this.speed = 4; 
+        // ■ 보스 속도 하향 (6 -> 3) : 이제 따라잡을 수 있습니다.
+        this.speed = 3; 
         this.scale = 0.5 / 3; 
+        this.ballTimer = 60; 
         bossSpawned = true;
     } else {
         this.hp = 10; this.maxHp = 10;
@@ -208,16 +233,35 @@ class Kappa {
         this.x = MAP_LEN - 100;
         this.facing = -1; 
     }
+
+    // ■ 보스 조준 발사 로직
+    if (this.isBoss && this.state === "alive") {
+        this.ballTimer--;
+        if (this.ballTimer <= 0) {
+            // 보스 위치에서 플레이어 위치(player.x, player.y)를 향해 발사
+            // 발사 위치는 보스의 약간 위쪽 (y - 60)
+            bossBalls.push(new BossBall(this.x, this.y - 60, player.x, player.y));
+            
+            // 공격 간격 (약 1.5초 ~ 2.5초)
+            this.ballTimer = 90 + Math.random() * 60; 
+        }
+    }
   }
 
   takeDamage(dmg) {
     if (this.state !== "alive") return;
     this.hp -= dmg;
+    playSound("sfxHit");
+
     if (this.hp <= 0) {
       this.hp = 0;
       this.state = "dying";
       this.deathTimer = 60;
       
+      if (this.isBoss) {
+          playSound("sfxBossOut");
+      }
+
       if (!this.isBoss) {
           killCount++;
           if (killCount >= totalEnemies) { 
@@ -231,6 +275,7 @@ class Kappa {
 
 function initEnemies() {
   enemies = [];
+  bossBalls = [];
   killCount = 0;
   enemiesSpawned = 0;
   spawnTimer = 0; 
@@ -239,12 +284,10 @@ function initEnemies() {
 
 function spawnBoss() {
     enemies = [];
+    bossBalls = [];
     enemies.push(new Kappa(true)); 
 }
 
-// ─────────────────────────────────────────────
-// 4. 입력 시스템 (키보드 + 모바일 터치 통합)
-// ─────────────────────────────────────────────
 const keys = {};
 
 function resetGame() {
@@ -264,8 +307,10 @@ function resetGame() {
 function stopAllMusic() {
     const bgm = document.getElementById("bgm");
     const bossBgm = document.getElementById("bossBgm");
+    const overBgm = document.getElementById("gameOverBgm"); 
     if(bgm) { bgm.pause(); bgm.currentTime = 0; }
     if(bossBgm) { bossBgm.pause(); bossBgm.currentTime = 0; }
+    if(overBgm) { overBgm.pause(); overBgm.currentTime = 0; }
 }
 
 function tryPlayMusic(id) {
@@ -277,7 +322,6 @@ function tryPlayMusic(id) {
     }
 }
 
-// ■ 키보드 이벤트
 window.addEventListener("keydown", (e) => {
   if(["ArrowUp", "ArrowDown", "Space", " "].includes(e.key)) e.preventDefault();
   handleInput(e.key, true);
@@ -287,33 +331,12 @@ window.addEventListener("keyup", (e) => {
   handleInput(e.key, false);
 });
 
-// ■ 터치 컨트롤러 이벤트 연결
 function bindTouch(btnId, keyName) {
     const btn = document.getElementById(btnId);
-    
-    // 터치 시작
-    btn.addEventListener("touchstart", (e) => {
-        e.preventDefault(); // 스크롤 방지
-        btn.classList.add("pressed");
-        handleInput(keyName, true);
-    }, {passive: false});
-
-    // 터치 끝
-    btn.addEventListener("touchend", (e) => {
-        e.preventDefault();
-        btn.classList.remove("pressed");
-        handleInput(keyName, false);
-    }, {passive: false});
-
-    // 마우스 클릭 (PC 테스트용)
-    btn.addEventListener("mousedown", (e) => {
-        btn.classList.add("pressed");
-        handleInput(keyName, true);
-    });
-    btn.addEventListener("mouseup", (e) => {
-        btn.classList.remove("pressed");
-        handleInput(keyName, false);
-    });
+    btn.addEventListener("touchstart", (e) => { e.preventDefault(); btn.classList.add("pressed"); handleInput(keyName, true); }, {passive: false});
+    btn.addEventListener("touchend", (e) => { e.preventDefault(); btn.classList.remove("pressed"); handleInput(keyName, false); }, {passive: false});
+    btn.addEventListener("mousedown", (e) => { btn.classList.add("pressed"); handleInput(keyName, true); });
+    btn.addEventListener("mouseup", (e) => { btn.classList.remove("pressed"); handleInput(keyName, false); });
 }
 
 bindTouch("btn-left", "ArrowLeft");
@@ -321,18 +344,13 @@ bindTouch("btn-right", "ArrowRight");
 bindTouch("btn-jump", "ArrowUp");
 bindTouch("btn-atk", "Space");
 
-
-// ■ 통합 입력 처리 함수
 function handleInput(key, isPressed) {
-    // 키 이름 통일 (Space 처리)
     let k = key;
     if(key === " " || key === "Space") k = "Space";
 
-    // 키 상태 업데이트
     if(isPressed) keys[k] = true;
     else keys[k] = false;
 
-    // 게임 상태 제어 (Space 키 눌렀을 때)
     if(k === "Space" && isPressed) {
         if (gameState === "intro") {
             gameState = "stageStart";
@@ -360,9 +378,6 @@ function handleInput(key, isPressed) {
     }
 }
 
-// ─────────────────────────────────────────────
-// 5. 업데이트
-// ─────────────────────────────────────────────
 function update() {
   if (gameState === "intro" || gameState === "gameOver" || gameState === "stageClear" || gameState === "bossReady") return;
 
@@ -395,7 +410,6 @@ function update() {
               const k = new Kappa(false);
               enemies.push(k);
               enemiesSpawned++;
-
               let nextTime = 120 - (enemiesSpawned * 2);
               if (nextTime < 30) nextTime = 30;
               spawnTimer = nextTime;
@@ -405,6 +419,7 @@ function update() {
 
   if (player.hp <= 0) {
       gameState = "gameOver";
+      tryPlayMusic("gameOverBgm"); 
       return;
   }
 
@@ -416,10 +431,15 @@ function update() {
   if (keys["ArrowUp"]) {
     if (player.y >= GROUND_Y - 10) {
       player.vy = player.jumpPower; player.y -= 5; player.onGround = false;
+      playSound("sfxJump");
     }
   }
 
-  if ((keys["Space"]) && player.attackTimer === 0) player.attackTimer = 15;
+  if ((keys["Space"]) && player.attackTimer === 0) {
+      player.attackTimer = 15;
+      playSound("sfxAttack");
+  }
+  
   if (player.attackTimer > 0) player.attackTimer--;
 
   player.vy += player.gravity; player.y += player.vy;
@@ -434,10 +454,32 @@ function update() {
 
   if (player.hurtTimer > 0) player.hurtTimer--;
 
+  bossBalls.forEach((ball, index) => {
+      ball.update();
+      if(!ball.active) {
+          bossBalls.splice(index, 1);
+          return;
+      }
+      if (player.hurtTimer === 0) {
+          // 공 충돌 판정
+          if (ball.x > player.x - 20 && ball.x < player.x + 20 &&
+              ball.y > player.y - 60 && ball.y < player.y + 10) {
+              
+              player.hp -= ball.damage;
+              player.hurtTimer = 60;
+              player.vy = -5;
+              // 공이 온 방향으로 튕겨나감
+              player.x += (ball.vx > 0 ? 20 : -20);
+              ball.active = false; 
+          }
+      }
+  });
+
   enemies.forEach(enemy => {
     enemy.update();
     if(enemy.state === "dead") return;
 
+    // 1. 배트 공격
     if(player.attackTimer > 0 && player.attackTimer < 12 && enemy.state === "alive") {
        const rangeBonus = enemy.isBoss ? 50 : 0;
        const atkRange = 100 + rangeBonus; 
@@ -448,12 +490,26 @@ function update() {
        }
     }
 
-    if(enemy.state === "alive" && player.hurtTimer === 0) {
+    // 2. 밟기 공격
+    let isStomping = false;
+    if (player.vy > 0 && enemy.state === "alive" && player.hurtTimer === 0) {
+        const stompWidth = enemy.isBoss ? 40 : 30; 
+        if (Math.abs(player.x - enemy.x) < stompWidth) {
+            if (player.y < enemy.y - 20 && player.y > enemy.y - 100) {
+                enemy.takeDamage(10); 
+                player.vy = -10; 
+                isStomping = true;
+            }
+        }
+    }
+
+    // 3. 플레이어 피격
+    if(!isStomping && enemy.state === "alive" && player.hurtTimer === 0) {
        const hitBonus = enemy.isBoss ? 30 : 0;
        if(Math.abs(player.x - enemy.x) < 40 + hitBonus && Math.abs(player.y - enemy.y) < 50 + hitBonus) {
           player.hp -= enemy.atk;
           player.hurtTimer = 60; 
-          player.vy = -5;
+          player.vy = -5; 
           player.x -= player.facing * 20;
           if(player.hp < 0) player.hp = 0;
        }
@@ -461,9 +517,6 @@ function update() {
   });
 }
 
-// ─────────────────────────────────────────────
-// 6. 그리기
-// ─────────────────────────────────────────────
 function drawHPBar(x, y, hp, maxHp, width, color, isFixed=false, offset=90) {
     if(isFixed) {
         g.fillStyle = "black";
@@ -520,13 +573,11 @@ function drawCharacter(img, x, y, facing, angle=0, alpha=1, scale=0.25, isDeadEn
 function draw() {
   g.clearRect(0, 0, W, H);
 
-  // ■ 인트로 ■
   if (gameState === "intro") {
     if (images.intro.complete) g.drawImage(images.intro, 0, 0, W, H);
     return;
   }
 
-  // ■ 배경 & 땅 ■
   if (images.bg.complete) {
     const bgX = -(camX * 0.5) % W;
     g.drawImage(images.bg, bgX, 0, W, H);
@@ -535,7 +586,6 @@ function draw() {
   g.fillStyle = "#654321"; g.fillRect(0, GROUND_Y, W, H - GROUND_Y);
   g.fillStyle = "#4ec04e"; g.fillRect(0, GROUND_Y, W, 10);
 
-  // ■ 게임 오버 ■
   if (gameState === "gameOver") {
       g.fillStyle = "rgba(0,0,0,0.8)"; g.fillRect(0,0,W,H);
       if(images.playerDead.complete) {
@@ -548,7 +598,6 @@ function draw() {
       return;
   }
 
-  // ■ 스테이지 클리어 ■
   if (gameState === "stageClear") {
       g.fillStyle = "rgba(0,0,0,0.8)"; g.fillRect(0,0,W,H);
       g.fillStyle = "yellow"; g.textAlign = "center"; g.font = "bold 60px sans-serif";
@@ -556,7 +605,8 @@ function draw() {
       return;
   }
 
-  // ■ 적(갓파 & 보스) 그리기 ■
+  bossBalls.forEach(ball => ball.draw());
+
   enemies.forEach(enemy => {
     const screenX = enemy.x - camX;
     
@@ -584,7 +634,6 @@ function draw() {
     }
   });
 
-  // ■ 플레이어 그리기 ■
   const screenX = player.x - camX;
   let atkAngle = 0;
   if (player.attackTimer > 0) atkAngle = (player.attackTimer > 10) ? -0.5 : 1.0;
@@ -602,14 +651,12 @@ function draw() {
     g.restore();
   }
 
-  // ■ UI 레이어 ■
   if (gameState === "stageStart") {
     if (npc.active && images.npc.complete) drawCharacter(images.npc, npc.x - camX, npc.y, npc.facing, 0, 1, player.scale);
     if (stageStep === 0) { g.fillStyle="rgba(0,0,0,0.7)";g.fillRect(0,0,W,H);g.fillStyle="white";g.textAlign="center";g.font="bold 60px sans-serif";g.fillText("STAGE ONE",W/2,H/2-30);g.font="bold 40px sans-serif";g.fillText("갓파큘라를 잡아라!",W/2,H/2+40);g.font="20px sans-serif";g.fillText("▼ 터치 또는 스페이스바",W/2,H-100);}
     else if(stageStep===1){g.fillStyle="rgba(0,0,0,0.8)";g.fillRect(0,0,W,160);g.fillStyle="#444";g.fillRect(30,20,120,35);g.fillStyle="white";g.textAlign="center";g.font="bold 20px sans-serif";g.fillText("여학생",90,45);g.textAlign="left";g.font="24px sans-serif";g.fillText("도시가 갓파에게 점령당했어요!",50,90);g.fillText("갓파를 물리치고 탈출할 수 있는 항구로 가세요.",50,130);g.textAlign="right";g.font="16px sans-serif";g.fillStyle="#aaa";g.fillText("▶ Next",W-30,140);}
   }
 
-  // ■ 보스 준비 ■
   if (gameState === "bossReady") {
       g.fillStyle = "rgba(0,0,0,0.7)"; g.fillRect(0,0,W,H);
       g.fillStyle = "red"; g.textAlign = "center"; g.font = "bold 60px sans-serif";
@@ -619,7 +666,6 @@ function draw() {
       g.font = "20px sans-serif"; g.fillText("터치하면 보스전 시작", W/2, H - 100);
   }
 
-  // ■ HUD ■
   if (gameState === "play" || gameState === "bossFight") {
       const minutes = Math.floor(gameTime / 60);
       const seconds = Math.floor(gameTime % 60);
@@ -647,5 +693,4 @@ function loop() {
 loop();
 </script>
 </body>
-
 </html>
